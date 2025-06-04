@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Air Quality Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f7f7f7;
+    }
+    h1 {
+      margin-top: 40px;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    label {
+      font-size: 1.1em;
+      margin-right: 10px;
+    }
+    #chart {
+      display: none;
+      margin-top: 20px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    }
+    #no-data-msg {
+      color: red;
+      margin-top: 20px;
+      display: none;
+      text-align: center;
+    }
+    #table-container {
+      display: none;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 20px;
+      width: 100%;
+    }
+    table {
+      margin-bottom: 20px;
+      font-size: 1.3em;
+      width: 350px;
+      min-width: 350px;
+      max-width: 400px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: #e3e3e3;
+    }
+  </style>
+</head>
+<body>
+<h1>Air Quality Data Viewer</h1>
+
+<div class="controls">
+  <label>Station Name:
+    <select id="station-select">
+      <option value="">-- Select Station --</option>
+    </select>
+  </label>
+
+  <label>Type:
+    <select id="type-select">
+      <option value="">-- Select Type --</option>
+    </select>
+  </label>
+
+  <label>From:
+    <input type="date" id="from-date">
+  </label>
+
+  <label>To:
+    <input type="date" id="to-date">
+  </label>
+
+  <button onclick="fetchData()">Filter</button>
+</div>
+
+<canvas id="chart" width="800" height="400"></canvas>
+
+<div id="no-data-msg">
+  Doesn't have any data on these time line
+</div>
+
+<div id="table-container"></div>
+
+<script>
+  // Load station options from the backend
+  async function loadStations() {
+    const res = await fetch('/api/stations');
+    const stations = await res.json();
+    const select = document.getElementById('station-select');
+    stations.forEach(name => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      select.appendChild(option);
+    });
+  }
+
+  // Load type (測項名稱) options from the backend
+  async function loadTypes() {
+    const res = await fetch('/api/types');
+    const types = await res.json();
+    const select = document.getElementById('type-select');
+    types.forEach(type => {
+      const option = document.createElement('option');
+      option.value = type;
+      option.textContent = type;
+      select.appendChild(option);
+    });
+  }
+
+  // Fetch filtered data from the backend
+  async function fetchData() {
+    const station = document.getElementById('station-select').value;
+    const type = document.getElementById('type-select').value;
+    const from = document.getElementById('from-date').value;
+    const to = document.getElementById('to-date').value;
+
+    // Only fetch if both from and to dates are provided
+    if (!from || !to) {
+      renderTable([]); // Hide table
+      renderChart([]); // Hide chart
+      document.getElementById('no-data-msg').style.display = 'none';
+      return;
+    }
+
+    const params = new URLSearchParams({ station, type, from, to });
+    const res = await fetch(`/api/data?${params}`);
+    const data = await res.json();
+
+    renderTable(data);
+    renderChart(data);
+
+    // Show "no data" message if no data
+    if (data.length === 0) {
+      document.getElementById('no-data-msg').style.display = '';
+    } else {
+      document.getElementById('no-data-msg').style.display = 'none';
+    }
+  }
+
+  // Render data in a chart (chart always on top)
+  let chart;
+  function renderChart(data) {
+    const canvas = document.getElementById('chart');
+    const ctx = canvas.getContext('2d');
+    canvas.style.display = data.length > 0 ? '' : 'none';
+
+    if (data.length === 0) {
+      if (chart) chart.destroy();
+      return;
+    }
+
+    const sorted = data.slice().sort((a, b) => new Date(a.monitoringTime) - new Date(b.monitoringTime));
+    const labels = sorted.map(r => r.monitoringTime);
+    const values = sorted.map(r => r.value);
+
+    if (chart) chart.destroy();
+    chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Air Quality Value',
+          data: values,
+          borderColor: 'blue',
+          backgroundColor: 'rgba(173, 216, 230, 0.3)',
+          fill: true,
+          tension: 0.2
+        }]
+      },
+      options: {
+        responsive: false,
+        scales: {
+          x: { title: { display: true, text: 'Date' } },
+          y: { title: { display: true, text: 'Value' } }
+        }
+      }
+    });
+  }
+
+  // Render data in multi-column tables below the chart
+  function renderTable(data) {
+    const tableContainer = document.getElementById('table-container');
+    const noDataMsg = document.getElementById('no-data-msg');
+    tableContainer.innerHTML = '';
+    if (data.length === 0) {
+      tableContainer.style.display = 'none';
+      noDataMsg.style.display = '';
+      return;
+    }
+    tableContainer.style.display = 'flex';
+    noDataMsg.style.display = 'none';
+
+    // Split data into 3 columns as evenly as possible
+    const columns = [[], [], []];
+    data.forEach((row, idx) => {
+      columns[idx % 3].push(row);
+    });
+
+    columns.forEach(colData => {
+      const table = document.createElement('table');
+      table.border = '1';
+      table.style.marginBottom = '20px';
+      table.style.fontSize = '1.3em';
+      table.style.width = '350px';
+      table.style.minWidth = '350px';
+      table.style.maxWidth = '400px';
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th style="padding:8px;">Date</th>
+            <th style="padding:8px;">Station</th>
+            <th style="padding:8px;">Test Item</th>
+            <th style="padding:8px;">Value</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      `;
+      const tbody = table.querySelector('tbody');
+      colData.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="padding:8px;">${row.monitoringTime}</td>
+          <td style="padding:8px;">${row.stationName}</td>
+          <td style="padding:8px;">${row.testName}</td>
+          <td style="padding:8px;">${row.value ?? ''}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      tableContainer.appendChild(table);
+    });
+  }
+
+  // Load station and type options when the page loads, but do not fetch data
+  loadStations();
+  loadTypes();
+  // Do not call fetchData() on load
+</script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+body {
+  font-family: Arial, sans-serif;
+  max-width: 700px;
+  margin: 30px auto;
+  padding: 20px;
+  background-color: #fafafa;
+}
+
+h1 {
+  text-align: center;
+  color: #444;
+}
+
+section {
+  margin-bottom: 25px;
+}
+
+label {
+  display: inline-block;
+  margin-right: 10px;
+}
+
+input[type="date"],
+input[type="number"] {
+  margin-right: 10px;
+  padding: 5px;
+}
+
+button {
+  padding: 5px 10px;
+  margin-top: 10px;
+}
+
+ul {
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 15px;
+  list-style-type: disc;
+}
